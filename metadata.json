@@ -1,0 +1,5 @@
+{
+  "name": "GenAI Roster Architect",
+  "description": "An AI-powered training roster tool that automatically schedules new starters with mentors and training modules using the Gemini 2.5 Flash model.",
+  "requestFramePermissions": []
+}
