@@ -20,15 +20,20 @@ export const generateRosterWithAI = async (
     You are an expert training coordinator and scheduler.
     
     Task: Create a training roster for new starters.
-    Start Date: ${startDate} (Assume a standard work week Mon-Fri, 9 AM - 5 PM).
+    Start Date: ${startDate} (Assume a standard work week Mon-Fri).
+    
+    Work Hours: 09:00 - 17:00.
+    Lunch Break: Ensure everyone has a break between 12:00 and 14:00.
     
     Constraints:
     1. Each STARTER must complete EVERY MODULE.
     2. Assign a MENTOR to each session.
-    3. If a module requires specific expertise, try to match a mentor with that expertise (if listed).
-    4. Avoid double-booking mentors or starters at the same time.
-    5. Spread sessions out logically over the week.
-    6. Return a clean JSON array of scheduled sessions.
+    3. Expertise Matching: If a module requires specific expertise, you MUST assign a mentor with that exact expertise.
+    4. Conflict Resolution: 
+       - A Mentor cannot teach two sessions at the same time.
+       - A Starter cannot attend two sessions at the same time.
+    5. Optimization: Group sessions logically to avoid 1-hour gaps if possible.
+    6. Output: Return a clean JSON array of scheduled sessions.
 
     Data:
     Starters: ${JSON.stringify(starters)}
@@ -52,11 +57,16 @@ export const generateRosterWithAI = async (
               starterName: { type: Type.STRING },
               mentorName: { type: Type.STRING },
               moduleName: { type: Type.STRING },
-              location: { type: Type.STRING, description: "Suggested location (e.g., Room A, Online)" }
+              location: { type: Type.STRING, description: "Suggested location (e.g., Room A, Online, Lab 1)" }
             },
             required: ["day", "time", "starterName", "mentorName", "moduleName"]
           }
-        }
+        },
+        // Using thinking config to ensure better conflict resolution
+        thinkingConfig: {
+          thinkingBudget: 1024, // Allocate tokens for reasoning about schedule conflicts
+        },
+        maxOutputTokens: 8192, // Required when using thinkingConfig
       }
     });
 
