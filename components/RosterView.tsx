@@ -1,15 +1,21 @@
 import React, { useState, useMemo } from 'react';
-import { Calendar, Clock, MapPin, User, Users, Filter, X } from 'lucide-react';
+import { Calendar, Clock, MapPin, User, Users, Filter, X, Edit2, Trash2, Check, XCircle } from 'lucide-react';
 import { ScheduleItem } from '../types';
 
 interface RosterViewProps {
   schedule: ScheduleItem[];
   loading: boolean;
+  onUpdateItem: (id: string, updatedFields: Partial<ScheduleItem>) => void;
+  onDeleteItem: (id: string) => void;
 }
 
-const RosterView: React.FC<RosterViewProps> = ({ schedule, loading }) => {
+const RosterView: React.FC<RosterViewProps> = ({ schedule, loading, onUpdateItem, onDeleteItem }) => {
   const [filterType, setFilterType] = useState<'all' | 'starter' | 'mentor'>('all');
   const [filterValue, setFilterValue] = useState<string>('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  
+  // Edit state
+  const [editForm, setEditForm] = useState<Partial<ScheduleItem>>({});
 
   // Extract unique values for filters
   const uniqueStarters = useMemo(() => Array.from(new Set(schedule.map(s => s.starterName))).sort(), [schedule]);
@@ -22,6 +28,26 @@ const RosterView: React.FC<RosterViewProps> = ({ schedule, loading }) => {
     return schedule;
   }, [schedule, filterType, filterValue]);
   
+  const startEditing = (item: ScheduleItem) => {
+    setEditingId(item.id);
+    setEditForm({
+      time: item.time,
+      location: item.location || '',
+      day: item.day
+    });
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditForm({});
+  };
+
+  const saveEditing = (id: string) => {
+    onUpdateItem(id, editForm);
+    setEditingId(null);
+    setEditForm({});
+  };
+
   if (loading) {
     return (
       <div className="h-full flex flex-col items-center justify-center p-12 text-center">
@@ -40,7 +66,7 @@ const RosterView: React.FC<RosterViewProps> = ({ schedule, loading }) => {
 
   if (schedule.length === 0) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50">
+      <div className="h-full flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-slate-200 rounded-xl bg-slate-50/50 no-print">
         <div className="bg-white p-4 rounded-full shadow-sm mb-4">
           <Calendar className="w-12 h-12 text-slate-300" />
         </div>
@@ -53,15 +79,13 @@ const RosterView: React.FC<RosterViewProps> = ({ schedule, loading }) => {
   }
 
   // Group by day for better display
-  // Explicitly type as string[] to avoid TS inference issues
   const days: string[] = Array.from(new Set(filteredSchedule.map(item => item.day)));
   
-  // Sort days (naive sort for Monday-Friday)
+  // Sort days
   const dayOrder = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
   days.sort((a, b) => {
     const indexA = dayOrder.indexOf(a);
     const indexB = dayOrder.indexOf(b);
-    // If day not in list (e.g. typo), put at end
     return (indexA === -1 ? 99 : indexA) - (indexB === -1 ? 99 : indexB);
   });
 
@@ -71,9 +95,9 @@ const RosterView: React.FC<RosterViewProps> = ({ schedule, loading }) => {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-full overflow-hidden flex flex-col">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 h-full overflow-hidden flex flex-col print-full-width">
       {/* Header & Filters */}
-      <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+      <div className="p-4 border-b border-slate-200 bg-slate-50 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 no-print">
         <h2 className="font-semibold text-slate-800 flex items-center gap-2">
           <Calendar className="w-5 h-5 text-blue-600" />
           Schedule
@@ -90,7 +114,7 @@ const RosterView: React.FC<RosterViewProps> = ({ schedule, loading }) => {
               value={filterType}
               onChange={(e) => {
                 setFilterType(e.target.value as any);
-                setFilterValue(''); // Reset value when type changes
+                setFilterValue('');
               }}
             >
               <option value="all">All View</option>
@@ -119,7 +143,7 @@ const RosterView: React.FC<RosterViewProps> = ({ schedule, loading }) => {
         </div>
       </div>
       
-      <div className="overflow-y-auto p-4 space-y-8 bg-slate-50/30">
+      <div className="overflow-y-auto p-4 space-y-8 bg-slate-50/30 print-full-width print:bg-white print:p-0">
         {days.length === 0 && (
            <div className="text-center py-8 text-slate-400 italic">
              No sessions found for this filter.
@@ -127,57 +151,130 @@ const RosterView: React.FC<RosterViewProps> = ({ schedule, loading }) => {
         )}
 
         {days.map(day => (
-          <div key={day} className="relative">
-            <div className="flex items-center mb-4 sticky top-0 bg-white/95 backdrop-blur-sm z-10 py-2 border-b border-slate-100">
-              <div className="w-3 h-3 rounded-full bg-blue-500 mr-2"></div>
+          <div key={day} className="relative print-break-inside-avoid">
+            <div className="flex items-center mb-4 sticky top-0 bg-white/95 backdrop-blur-sm z-10 py-2 border-b border-slate-100 print:static print:border-b-2 print:border-slate-800">
+              <div className="w-3 h-3 rounded-full bg-blue-500 mr-2 print:hidden"></div>
               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">
                 {day}
               </h3>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pl-5 border-l-2 border-slate-100">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 pl-5 border-l-2 border-slate-100 print:grid-cols-2 print:border-none print:pl-0">
               {filteredSchedule
                 .filter(item => item.day === day)
-                .sort((a, b) => a.time.localeCompare(b.time)) // Sort by time within day
+                .sort((a, b) => a.time.localeCompare(b.time))
                 .map(item => (
-                  <div key={item.id} className="group bg-white border border-slate-200 p-4 rounded-lg hover:shadow-md hover:border-blue-400 transition-all duration-200">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-600 mb-1">
-                          <Clock className="w-3 h-3 mr-1.5" />
-                          {item.time}
-                        </span>
-                        <h4 className="font-semibold text-slate-800 text-base leading-tight mt-1">{item.moduleName}</h4>
-                      </div>
-                      {item.location && (
-                        <div className="flex items-center text-xs font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
-                           <MapPin className="w-3 h-3 mr-1" />
-                           {item.location}
-                        </div>
-                      )}
-                    </div>
+                  <div key={item.id} className="group bg-white border border-slate-200 p-4 rounded-lg hover:shadow-md hover:border-blue-400 transition-all duration-200 print:border-slate-300 print:shadow-none">
                     
-                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-50 mt-2">
-                      <div className="flex items-center gap-2 p-1.5 rounded-md bg-blue-50/50 border border-blue-50">
-                        <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                          <User className="w-3.5 h-3.5 text-blue-600" />
+                    {editingId === item.id ? (
+                      /* EDIT MODE */
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center border-b border-slate-100 pb-2 mb-2">
+                          <span className="text-xs font-bold text-blue-600 uppercase">Editing Session</span>
+                          <div className="flex gap-1">
+                            <button onClick={() => saveEditing(item.id)} className="p-1 text-emerald-600 hover:bg-emerald-50 rounded">
+                              <Check className="w-4 h-4" />
+                            </button>
+                            <button onClick={cancelEditing} className="p-1 text-slate-400 hover:bg-slate-50 rounded">
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="overflow-hidden">
-                          <p className="text-[10px] uppercase tracking-wider text-blue-400 font-semibold">Trainee</p>
-                          <p className="text-sm font-medium text-slate-700 truncate" title={item.starterName}>{item.starterName}</p>
+                        
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <label className="text-[10px] text-slate-400 font-semibold">Day</label>
+                            <select 
+                              className="w-full text-xs p-1 border border-slate-300 rounded"
+                              value={editForm.day}
+                              onChange={(e) => setEditForm({...editForm, day: e.target.value})}
+                            >
+                              {dayOrder.map(d => <option key={d} value={d}>{d}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                             <label className="text-[10px] text-slate-400 font-semibold">Time</label>
+                             <input 
+                               type="text" 
+                               className="w-full text-xs p-1 border border-slate-300 rounded"
+                               value={editForm.time}
+                               onChange={(e) => setEditForm({...editForm, time: e.target.value})}
+                             />
+                          </div>
+                        </div>
+                        <div>
+                           <label className="text-[10px] text-slate-400 font-semibold">Location</label>
+                           <input 
+                             type="text" 
+                             className="w-full text-xs p-1 border border-slate-300 rounded"
+                             value={editForm.location}
+                             onChange={(e) => setEditForm({...editForm, location: e.target.value})}
+                           />
                         </div>
                       </div>
-                      
-                      <div className="flex items-center gap-2 p-1.5 rounded-md bg-purple-50/50 border border-purple-50">
-                        <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                          <Users className="w-3.5 h-3.5 text-purple-600" />
+                    ) : (
+                      /* VIEW MODE */
+                      <>
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-slate-100 text-slate-600 mb-1 print:bg-transparent print:border print:border-slate-200">
+                              <Clock className="w-3 h-3 mr-1.5" />
+                              {item.time}
+                            </span>
+                            <h4 className="font-semibold text-slate-800 text-base leading-tight mt-1">{item.moduleName}</h4>
+                          </div>
+                          
+                          <div className="flex flex-col items-end gap-1">
+                            {item.location && (
+                              <div className="flex items-center text-xs font-medium text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 print:bg-transparent">
+                                <MapPin className="w-3 h-3 mr-1" />
+                                {item.location}
+                              </div>
+                            )}
+                            
+                            {/* Action Buttons (Hidden in Print) */}
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity no-print">
+                              <button 
+                                onClick={() => startEditing(item)}
+                                className="p-1 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                title="Edit Session"
+                              >
+                                <Edit2 className="w-3.5 h-3.5" />
+                              </button>
+                              <button 
+                                onClick={() => onDeleteItem(item.id)}
+                                className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                title="Delete Session"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
                         </div>
-                        <div className="overflow-hidden">
-                          <p className="text-[10px] uppercase tracking-wider text-purple-400 font-semibold">Mentor</p>
-                          <p className="text-sm font-medium text-slate-700 truncate" title={item.mentorName}>{item.mentorName}</p>
+                        
+                        <div className="grid grid-cols-2 gap-2 pt-3 border-t border-slate-50 mt-2 print:border-slate-200">
+                          <div className="flex items-center gap-2 p-1.5 rounded-md bg-blue-50/50 border border-blue-50 print:bg-transparent print:border-none">
+                            <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 print:hidden">
+                              <User className="w-3.5 h-3.5 text-blue-600" />
+                            </div>
+                            <div className="overflow-hidden">
+                              <p className="text-[10px] uppercase tracking-wider text-blue-400 font-semibold print:text-slate-500">Trainee</p>
+                              <p className="text-sm font-medium text-slate-700 truncate" title={item.starterName}>{item.starterName}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 p-1.5 rounded-md bg-purple-50/50 border border-purple-50 print:bg-transparent print:border-none">
+                            <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 print:hidden">
+                              <Users className="w-3.5 h-3.5 text-purple-600" />
+                            </div>
+                            <div className="overflow-hidden">
+                              <p className="text-[10px] uppercase tracking-wider text-purple-400 font-semibold print:text-slate-500">Mentor</p>
+                              <p className="text-sm font-medium text-slate-700 truncate" title={item.mentorName}>{item.mentorName}</p>
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
+                      </>
+                    )}
                   </div>
                 ))}
             </div>
